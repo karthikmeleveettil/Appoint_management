@@ -10,8 +10,9 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginSignupPage />} />
         <Route path="/login" element={<LoginSignupPage />} /> {/* ✅ Fixed login route */}
-        <Route path="/appointments" element={<AppointmentManagementUI />} />
         <Route path="/add-appointment" element={<AddAppointmentPage />} />
+        <Route path="/appointments" element={<AppointmentManagementUI />} />
+      
       </Routes>
     </Router>
   );

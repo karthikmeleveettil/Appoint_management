@@ -1,15 +1,14 @@
 import React, { useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { useNavigate } from "react-router-dom";
 
-// Use environment variables for security
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-
-// Initialize Supabase client
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const AppointmentManagementUI = () => {
+  const navigate = useNavigate(); // ✅ Initialize navigation
+
   // State variables
   const [allAppointments, setAllAppointments] = useState([]);
   const [singleAppointment, setSingleAppointment] = useState(null);
@@ -19,16 +18,16 @@ const AppointmentManagementUI = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch all appointments
+  // 🔹 Fetch all appointments
   const fetchAllAppointments = async () => {
     setLoading(true);
     setError(null);
     setActiveView("allAppointments");
-  
+
     try {
       const { data, error } = await supabase
         .from("appointments")
-        .select("id, user_id(full_name), staff_id, appointment_date, virtual_link, notes, status, created_at, updated_at");
+        .select("id, user_id(full_name), appointment_date, status");
 
       if (error) throw error;
 
@@ -36,7 +35,6 @@ const AppointmentManagementUI = () => {
         id: appointment.id,
         patientName: appointment.user_id?.full_name || "Unknown",
         date: new Date(appointment.appointment_date).toISOString().split("T")[0],
-        time: new Date(appointment.appointment_date).toLocaleTimeString(),
         status: appointment.status,
       }));
 
@@ -48,9 +46,8 @@ const AppointmentManagementUI = () => {
       setLoading(false);
     }
   };
-  
 
-  // Fetch single appointment by ID
+  // 🔹 Fetch single appointment by ID
   const fetchSingleAppointment = async () => {
     if (!appointmentId) {
       setError("Please enter an appointment ID");
@@ -92,7 +89,7 @@ const AppointmentManagementUI = () => {
     }
   };
 
-  // Fetch all treatments
+  // 🔹 Fetch all treatments
   const fetchAllTreatments = async () => {
     setLoading(true);
     setError(null);
@@ -102,8 +99,6 @@ const AppointmentManagementUI = () => {
       const { data, error } = await supabase.from("treatments").select("*");
 
       if (error) throw error;
-      
-    console.log("Fetched Treatments:", data); // Debugging log
 
       const formattedData = data.map((treatment) => ({
         id: treatment.id,
@@ -122,19 +117,25 @@ const AppointmentManagementUI = () => {
     }
   };
 
+  // 🔹 Redirect function for creating new appointments
+  const handleCreateAppointment = () => {
+    navigate("/add-appointment"); // ✅ Redirects to AddAppointmentPage
+  };
+
   return (
     <div style={{ fontFamily: "Arial, sans-serif", maxWidth: "1200px", margin: "0 auto", padding: "20px" }}>
-      <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "20px", color: "#333"}}>
+      <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "20px", color: "#333" }}>
         Appointment Management System
       </h1>
 
       {/* Buttons */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+        <button onClick={handleCreateAppointment} style={buttonStyle}>Create New Appointment</button>
         <button onClick={fetchAllAppointments} style={buttonStyle}>Get All Appointments</button>
         <button onClick={fetchAllTreatments} style={buttonStyle}>Get All Treatments</button>
       </div>
 
-      {/* Input for single appointment */}
+      {/* Input for searching appointment by ID */}
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
         <input
           type="text"
@@ -143,7 +144,7 @@ const AppointmentManagementUI = () => {
           placeholder="Enter Appointment ID"
           style={inputStyle}
         />
-        <button onClick={fetchSingleAppointment} style={buttonStyle}>Get Single Appointment Detail</button>
+        <button onClick={fetchSingleAppointment} style={buttonStyle}>Search Appointment</button>
       </div>
 
       {loading && <p style={{ color: "#666", fontStyle: "italic" }}>Loading data...</p>}
@@ -151,7 +152,7 @@ const AppointmentManagementUI = () => {
 
       {/* Render Appointments Table */}
       {!loading && activeView === "allAppointments" && allAppointments.length > 0 && (
-        <Table data={allAppointments} columns={["ID", "Patient Name", "Date", "Time", "Status"]} />
+        <Table data={allAppointments} columns={["ID", "Patient Name", "Date", "Status"]} />
       )}
 
       {/* Render Single Appointment Details */}

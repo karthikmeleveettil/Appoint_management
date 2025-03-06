@@ -1,16 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { getCurrentUser,isAuthenticated } from "../auth";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../auth";
 
 const AddAppointmentPage = () => {
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      navigate("/login");
-    }
-  }, []);
-
+  
   const [formData, setFormData] = useState({
     user_id: "",
     staff_id: "",
@@ -21,37 +15,73 @@ const AddAppointmentPage = () => {
     notes: "",
   });
 
-  const [users, setUsers] = useState([]);
+  const [patients, setPatients] = useState([]);
   const [staffMembers, setStaffMembers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
+  // Fetch unique patients from appointments table
   useEffect(() => {
-    setTimeout(() => {
-      setUsers([
-        { user_id: "85ea84f6-6707-417e-b50e-4c7566e688fb", name: "John Doe", email: "john@example.com" },
-        { user_id: "898c4653-7af6-43e4-9676-aa174da5d34a", name: "Jane Smith", email: "jane@example.com" },
-        { user_id: "be6cb730-947b-421e-a8ec-c416fba12382", name: "Robert Johnson", email: "robert@example.com" },
-      ]);
-    }, 500);
+    const fetchPatients = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("appointments")
+          .select("user_id, profiles(full_name)")
+          .order("appointment_date", { ascending: false });
 
-    setTimeout(() => {
-      setStaffMembers([
-        { user_id: "be6cb730-947b-421e-a8ec-c416fba12382", name: "Dr. Robert Johnson", role: "Dentist" },
-      ]);
-    }, 500);
+        if (error) throw error;
+
+        const uniquePatients = [];
+        const seenUserIds = new Set();
+
+        data.forEach((item) => {
+          if (!seenUserIds.has(item.user_id)) {
+            seenUserIds.add(item.user_id);
+            uniquePatients.push({
+              user_id: item.user_id,
+              full_name: item.profiles?.full_name || "Unknown",
+            });
+          }
+        });
+
+        setPatients(uniquePatients);
+      } catch (error) {
+        console.error("Error fetching patients:", error);
+        setError("Failed to fetch patients.");
+      }
+    };
+
+    fetchPatients();
   }, []);
 
+  // Fetch staff members from staff_profiles table
+  useEffect(() => {
+    const fetchStaff = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("staff_profiles")
+          .select("user_id, name");
+
+        if (error) throw error;
+        setStaffMembers(data);
+      } catch (error) {
+        console.error("Error fetching staff:", error.message);
+        setError("Failed to fetch staff members.");
+      }
+    };
+
+    fetchStaff();
+  }, []);
+
+  // Handle input change
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+    setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = (e) => {
+  // Handle form submission
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -73,11 +103,12 @@ const AddAppointmentPage = () => {
       notes: formData.notes || null,
     };
 
-    setTimeout(() => {
-      console.log("Creating appointment with:", appointmentData);
-      setSuccess("Appointment created successfully!");
-      setLoading(false);
+    try {
+      const { error } = await supabase.from("appointments").insert([appointmentData]);
 
+      if (error) throw error;
+
+      setSuccess("Appointment created successfully!");
       setFormData({
         user_id: "",
         staff_id: "",
@@ -90,15 +121,20 @@ const AddAppointmentPage = () => {
 
       setTimeout(() => {
         setSuccess(null);
-      }, 3000);
-    }, 1000);
+        navigate("/appointments");
+      }, 2000);
+    } catch (error) {
+      console.error("Error creating appointment:", error);
+      setError("Failed to create appointment.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-r from-blue-50 to-indigo-100 p-6">
       <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow-md">
         <h1 className="text-2xl font-bold text-gray-800">Add New Appointment</h1>
-        <p className="text-gray-600">Welcome, {getCurrentUser()?.email}</p>
 
         {error && <div className="bg-red-100 text-red-700 p-3 rounded mt-3">{error}</div>}
         {success && <div className="bg-green-100 text-green-700 p-3 rounded mt-3">{success}</div>}
@@ -109,9 +145,9 @@ const AddAppointmentPage = () => {
               <label className="block font-semibold">Patient <span className="text-red-500">*</span></label>
               <select name="user_id" value={formData.user_id} onChange={handleChange} className="w-full border p-2 rounded">
                 <option value="">Select Patient</option>
-                {users.map((user) => (
-                  <option key={user.user_id} value={user.user_id}>
-                    {user.name} ({user.email})
+                {patients.map((patient) => (
+                  <option key={patient.user_id} value={patient.user_id}>
+                    {patient.full_name}
                   </option>
                 ))}
               </select>
@@ -120,10 +156,10 @@ const AddAppointmentPage = () => {
             <div>
               <label className="block font-semibold">Staff Member</label>
               <select name="staff_id" value={formData.staff_id} onChange={handleChange} className="w-full border p-2 rounded">
-                <option value="">Select Staff Member (Optional)</option>
+                <option value="">Select Staff Member</option>
                 {staffMembers.map((staff) => (
                   <option key={staff.user_id} value={staff.user_id}>
-                    {staff.name} - {staff.role}
+                    {staff.name}
                   </option>
                 ))}
               </select>
@@ -142,39 +178,27 @@ const AddAppointmentPage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mt-4">
-            <div>
-              <label className="block font-semibold">Status</label>
-              <select name="status" value={formData.status} onChange={handleChange} className="w-full border p-2 rounded">
-                <option value="scheduled">Scheduled</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="cancelled">Cancelled</option>
-                <option value="completed">Completed</option>
-                <option value="no-show">No Show</option>
-              </select>
-            </div>
+          <div className="mt-4">
+            <label className="block font-semibold">Status</label>
+            <select name="status" value={formData.status} onChange={handleChange} className="w-full border p-2 rounded">
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
 
-            <div>
-              <label className="block font-semibold">Virtual Meeting Link</label>
-              <input type="text" name="virtual_link" value={formData.virtual_link} onChange={handleChange} placeholder="https://meet.example.com/room-id" className="w-full border p-2 rounded" />
-            </div>
+          <div className="mt-4">
+            <label className="block font-semibold">Virtual Meeting Link</label>
+            <input type="text" name="virtual_link" value={formData.virtual_link} onChange={handleChange} placeholder="Enter Meet link (if any)" className="w-full border p-2 rounded" />
           </div>
 
           <div className="mt-4">
             <label className="block font-semibold">Notes</label>
-            <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Enter any additional information or special instructions for this appointment" className="w-full border p-2 rounded h-24"></textarea>
+            <textarea name="notes" value={formData.notes} onChange={handleChange} placeholder="Additional details..." className="w-full border p-2 rounded h-24"></textarea>
           </div>
 
           <div className="flex justify-between mt-6">
-            <button type="button" onClick={() => setFormData({
-              user_id: "",
-              staff_id: "",
-              appointment_date: "",
-              appointment_time: "",
-              status: "scheduled",
-              virtual_link: "",
-              notes: "",
-            })} className="px-4 py-2 bg-gray-200 text-gray-700 rounded">Cancel</button>
+            <button type="button" onClick={() => navigate("/appointments")} className="px-4 py-2 bg-gray-200 text-gray-700 rounded">Cancel</button>
 
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white font-bold rounded" disabled={loading}>
               {loading ? "Creating Appointment..." : "Create Appointment"}
